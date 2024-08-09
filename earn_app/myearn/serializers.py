@@ -3,9 +3,10 @@ from .models import *
 
 from django.contrib.auth.hashers import make_password
 class UserSerializer(serializers.ModelSerializer):
+    total_points = serializers.IntegerField()
     class Meta:
         model = CustomUser
-        fields = ('id','username','first_name','last_name','email','password','role','phone_number','sex')
+        fields = ('id','username','first_name','last_name','email','password','role','phone_number','sex','total_points')
         extra_kwargs = {
             'password':{'write_only':True},
         }
@@ -68,4 +69,13 @@ class AnswerSerializer(serializers.ModelSerializer):
         model = Answer
         fields = ['id', 'question','selected_option']
 
+class WithdrawalRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WithdrawalRequest
+        fields = ['id', 'user', 'amount', 'status', 'created_at', 'updated_at']
+
+class VirtualWalletSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = VirtualWallet
+        fields = ['user', 'balance']
 

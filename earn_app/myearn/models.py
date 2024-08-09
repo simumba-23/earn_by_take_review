@@ -2,6 +2,11 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 # from datetime import timedelta,timezone
 from django.utils import timezone
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from decimal import Decimal
+
+POINTS_TO_MONEY_CONVERSION_RATE = 0.0029
 
 
 class CustomUser(AbstractUser):
@@ -67,6 +72,11 @@ class UserTask(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.task.name}"
     
+    def convert_points_to_money(self):
+        return self.points_earned * POINTS_TO_MONEY_CONVERSION_RATE
+
+    
+    
 class Answer(models.Model):
     question = models.ForeignKey(Question, on_delete=models.CASCADE, null=True, blank=True)
     selected_option = models.ForeignKey(AnswerOption, on_delete=models.CASCADE, null=True, blank=True)
@@ -81,41 +91,43 @@ class VirtualWallet(models.Model):
 
     def __str__(self):
         return f"{self.user.username}'s Wallet - Balance: ${self.balance}"
+    
+    def update_balance(self, amount):
+        self.balance += Decimal(amount)
+        self.save()
 
-class Reward(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    user_task = models.ForeignKey(UserTask, on_delete=models.CASCADE)
-    points_earned = models.IntegerField()
-    virtual_money_earned = models.DecimalField(max_digits=10, decimal_places=2)
+@receiver(post_save, sender=UserTask)
+def update_wallet_balance(sender, instance, **kwargs):
+    if instance.status == 'Completed':
+        wallet, created = VirtualWallet.objects.get_or_create(user=instance.user)
+        wallet.update_balance(instance.convert_points_to_money())
 
-    def __str__(self):
-        return f"{self.user.username} - {self.points_earned} points - ${self.virtual_money_earned}"
-
-class Transaction(models.Model):
-    TRANSACTION_TYPES = (
-        ('earn', 'Earn'),
-        ('withdraw', 'Withdraw'),
-    )
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    transaction_type = models.CharField(choices=TRANSACTION_TYPES, max_length=50)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.user.username} - {self.transaction_type} - ${self.amount}"
 
 class WithdrawalRequest(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    account_details = models.CharField(max_length=255)
-    status = models.CharField(max_length=20, default='pending')  # 'pending', 'approved', 'rejected'
+    status = models.CharField(max_length=20) 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-class PointsConversionRate(models.Model):
-    rate = models.DecimalField(max_digits=10, decimal_places=4)  # e.g., 0.01 for 1 point = $0.01
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    def __str__(self):
+        return f"{self.user.username} $ {self.amount}"
+    
+    def approve(self):
+        if self.status == 'pending':
+            self.status = 'approved'
+            self.save()
+            return True
+        return False
+
+    def reject(self):
+        if self.status == 'pending':
+            wallet = VirtualWallet.objects.get(user=self.user)
+            wallet.update_balance(self.amount)  # Refund the amount
+            self.status = 'rejected'
+            self.save()
+            return True
+        return False
 
 class Notification(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
