@@ -19,6 +19,15 @@ urlpatterns = [
     path('withdrawal-requests/list',views.list_withdrawal_requests, name='list_withdrawal_requests'),
     path('withdrawal-requests/<int:pk>/approve', views.approve_withdrawal_request, name='approve_withdrawal_request'),
     path('withdrawal-requests/<int:pk>/reject', views.reject_withdrawal_request, name='reject_withdrawal_request'),
+    path('blogs', views.blog_list, name='blog-list'),
+    path('create_blog', views.create_blog),
+    path('blogs/<int:pk>/', views.blog_detail, name='blog-detail'),
+    path('comments', views.comment_list, name='comment-list'),
+    path('comments/<int:pk>/', views.comment_detail, name='comment-detail'),
+    path('categories', views.get_categories),
+    path('tags', views.get_tags),
+
+
 ]
 
 

@@ -28,10 +28,6 @@ class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = '__all__'
-class BlogSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Blog
-        fields = '__all__'
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -47,8 +43,44 @@ class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = '__all__'
-        
-# serializers.py
+class BlogSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source='author.username', read_only=True)
+    categories = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), many=True)
+    tags = serializers.PrimaryKeyRelatedField(queryset=Tag.objects.all(), many=True)
+    author = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = Blog
+        fields = '__all__'
+
+    def create(self, validated_data):
+        categories_data = validated_data.pop('categories')
+        tags_data = validated_data.pop('tags')
+        # Ensure the request context is provided and retrieve the user
+        request = self.context.get('request')
+        author = request.user if request else None
+
+        # Create the blog post with the author
+        blog = Blog.objects.create(author=author, **validated_data)
+        blog.categories.set( categories_data)
+        blog.tags.set(tags_data)
+        return blog
+
+    def update(self, instance, validated_data):
+        categories_data = validated_data.pop('categories', None)
+        tags_data = validated_data.pop('tags', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if categories_data is not None:
+            instance.categories.set(categories_data)
+        if tags_data is not None:
+            instance.tags.set(tags_data)
+
+        instance.save()
+        return instance
+    
 class SurveySerializer(serializers.ModelSerializer):
     class Meta:
         model = Survey

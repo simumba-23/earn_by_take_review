@@ -137,13 +137,14 @@ class Notification(models.Model):
 
 class Category(models.Model):
     name = models.CharField(max_length=255)
-    slug = models.SlugField(unique=True)
+    slug = models.SlugField(unique=True,blank=True, db_index=True)
+
 
     def __str__(self):
         return self.name
 class Tag(models.Model):
     name = models.CharField(max_length=255)
-    slug = models.SlugField(unique=True)
+    slug = models.SlugField(unique=True,blank=True, db_index=True)
 
     def __str__(self):
         return self.name
@@ -155,14 +156,19 @@ class Blog(models.Model):
     tags = models.ManyToManyField(Tag, related_name='blogs')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    slug = models.SlugField(unique=True,blank=True, db_index=True)
+
 
     def __str__(self):
-        return self.title
+        return f"{self.title} by {self.author.username}"
 class Comment(models.Model):
     blog = models.ForeignKey(Blog, on_delete=models.CASCADE, related_name='comments')
     author = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+    parent = models.ForeignKey('self', null=True, blank=True, related_name='replies', on_delete=models.CASCADE)
 
     def __str__(self):
         return f"Comment by {self.author.username} on {self.blog.title}"
+    def get_replies(self):
+        return self.replies.all()
