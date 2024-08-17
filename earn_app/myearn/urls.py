@@ -6,6 +6,7 @@ urlpatterns = [
     path('add-task',views.add_task),
     path('tasks',views.task_list),
     path('tasks/<str:task_type>/', views.task_list),
+    path('task/<int:id>/task_detail',views.task_detail),
     path('complete_task',views.complete_task),
     path('surveys/<str:task_id>/task',views.get_survey),
     path('surveys', views.survey_list_create, name='survey-list-create'),

@@ -4,6 +4,9 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+import random
+import string
+from django.utils.text import slugify
 from decimal import Decimal
 
 POINTS_TO_MONEY_CONVERSION_RATE = 0.0029
@@ -23,9 +26,9 @@ class CustomUser(AbstractUser):
 
 class Task(models.Model):
     TASK_TYPES = (
-        ('ad', 'Ad'),
-        ('music', 'Music'),
-        ('podcast', 'Podcast'),
+        ('Video', 'Video'),
+        ('Podcast', 'Podcast'),
+        ('Audio', 'Audio'),
     )
     name = models.CharField(max_length=255)
     task_type = models.CharField(choices=TASK_TYPES, max_length=50)
@@ -157,10 +160,27 @@ class Blog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     slug = models.SlugField(unique=True,blank=True, db_index=True)
+    image_url = models.ImageField(blank=True,null=True)
 
 
     def __str__(self):
         return f"{self.title} by {self.author.username}"
+    @property
+    def imgURL(self):
+        try:
+            url= self.image_url.url
+        except:
+            url = ''
+            return url
+    
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base_slug = slugify(self.title)
+            slug = base_slug
+            while Blog.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{''.join(random.choices(string.ascii_letters + string.digits, k=4))}"
+            self.slug = slug
+        super().save(*args, **kwargs)
 class Comment(models.Model):
     blog = models.ForeignKey(Blog, on_delete=models.CASCADE, related_name='comments')
     author = models.ForeignKey(CustomUser, on_delete=models.CASCADE)

@@ -55,7 +55,14 @@ def task_list(request, task_type=None):
         tasks = Task.objects.filter(is_active=True)
     serializer = TaskSerializer(tasks, many=True)
     return Response(serializer.data)
-
+@api_view(['GET'])
+def task_detail(request,id):
+    try:
+        task_detail = Task.objects.get(id=id)
+    except Task.DoesNotExist:
+        return Response({'error': 'Task not found'}, status=status.HTTP_404_NOT_FOUND)
+    serializers = TagSerializer(task_detail)
+    return Response(serializers.data,status=status.HTTP_200_OK)
 @api_view(['POST'])
 def add_task(request):
     if request.method == 'POST':
@@ -172,12 +179,16 @@ def user_task_stats(request):
     total_tasks = UserTask.objects.filter(user=user).count()
     completed_tasks = UserTask.objects.filter(user=user, status='Completed').count()
     wallet_balance = VirtualWallet.objects.filter(user=user).aggregate(wallet_balance = models.Sum('balance'))['wallet_balance']
-
+    pending_total = WithdrawalRequest.objects.filter(status='pending').aggregate(total_amount=Sum('amount'))['total_amount'] or 0
+    approved_total = WithdrawalRequest.objects.filter(status='approved').aggregate(total_amount=Sum('amount'))['total_amount'] or 0
     return Response({
         "total_points": total_points,
         "total_tasks": total_tasks,
         "completed_tasks": completed_tasks,
         "wallet_balance": wallet_balance,
+        "pending_total":pending_total,
+        "approved_total":approved_total
+
     })
 
 @api_view(['GET'])
@@ -305,14 +316,22 @@ def reject_withdrawal_request(request, pk):
             return Response({'error': 'Already processed'}, status=status.HTTP_400_BAD_REQUEST)
     except WithdrawalRequest.DoesNotExist:
         return Response({'error': 'Withdrawal request not found'}, status=status.HTTP_404_NOT_FOUND)
-    
+
+from rest_framework.pagination import PageNumberPagination   
 @api_view(['GET'])
 def blog_list(request):
-    if request.method == 'GET':
-        blogs = Blog.objects.all()
-        serializer = BlogSerializer(blogs, many=True)
-        return Response(serializer.data)
+    # Initialize the pagination class
+    paginator = PageNumberPagination()
+    paginator.page_size = 10  # Number of items per page, adjust as needed
+
+    # Get the blogs and paginate them
+    blogs = Blog.objects.all()
+    paginated_blogs = paginator.paginate_queryset(blogs, request)
+    serializer = BlogSerializer(paginated_blogs, many=True)
     
+    # Return paginated response
+    return paginator.get_paginated_response(serializer.data)   
+ 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_blog(request):
