@@ -27,7 +27,7 @@ class SurveySerializer(serializers.ModelSerializer):
 class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
-        fields = '__all__'
+        fields = ['id','name','points','media_url','task_type']
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:

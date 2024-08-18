@@ -83,13 +83,32 @@ CORS_ORIGIN_ALLOW_ALL = True
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
+import os
+import dj_database_url
+import environ
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+env = environ.Env()
+environ.Env.read_env()
+
+if env('DJANGO_ENV') == 'production':
+    DATABASES = {
+        'default': dj_database_url.config(conn_max_age=600)
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / "db.sqlite3",
+        }
+    }
+
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
 
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
@@ -130,9 +149,14 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Ensure `django.contrib.staticfiles` is in INSTALLED_APPS
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
@@ -150,3 +174,7 @@ SIMPLE_JWT = {
 }
 
 AUTH_USER_MODEL = 'myearn.CustomUser';
+
+SPOTIFY_CLIENT_ID = 'c0160dc7f7c4405cb5e8af3106e15b76'
+SPOTIFY_CLIENT_SECRET = 'f57d11c619654021b9e8fb259f7a0e6d'
+SPOTIFY_REDIRECT_URI = 'http://localhost:3000/'  # Change this to your actual redirect URI

@@ -61,7 +61,7 @@ def task_detail(request,id):
         task_detail = Task.objects.get(id=id)
     except Task.DoesNotExist:
         return Response({'error': 'Task not found'}, status=status.HTTP_404_NOT_FOUND)
-    serializers = TagSerializer(task_detail)
+    serializers = TaskSerializer(task_detail)
     return Response(serializers.data,status=status.HTTP_200_OK)
 @api_view(['POST'])
 def add_task(request):
@@ -415,5 +415,30 @@ def get_tags(request):
     serializers = TagSerializer(tag_list,many=True)
     return Response(serializers.data,status=status.HTTP_200_OK)
 
+from django.conf import settings
+from django.http import JsonResponse
+import requests
+
+@api_view(['POST'])
+def get_access_token(request):
+    code = request.data.get('code')
+    if not code:
+        return JsonResponse({'error': 'Authorization code not provided'}, status=400)
+
+    response = requests.post(
+        'https://accounts.spotify.com/api/token',
+        data={
+            'grant_type': 'authorization_code',
+            'code': code,
+            'redirect_uri': settings.SPOTIFY_REDIRECT_URI,
+            'client_id': settings.SPOTIFY_CLIENT_ID,
+            'client_secret': settings.SPOTIFY_CLIENT_SECRET,
+        },
+        headers={
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+    )
+
+    return JsonResponse(response.json())
     
 
