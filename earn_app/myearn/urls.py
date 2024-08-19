@@ -1,8 +1,6 @@
 from django.urls import path
 from . import views
-from django.views.generic import TemplateView
 urlpatterns = [
-    path('', TemplateView.as_view(template_name='index.html')),
     path('register',views.register_user),
     path('customers', views.customer_list, name='customer-list'),
     path('add-task',views.add_task),
