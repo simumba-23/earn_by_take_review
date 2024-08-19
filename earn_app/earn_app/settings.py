@@ -28,7 +28,7 @@ SECRET_KEY = 'django-insecure-)qu*zoix$-@f-wp@9hw2ycnf2hjlas38&vcpskazc0_dxsy7mc
 DEBUG = False
 
 # ALLOWED_HOSTS = []
-ALLOWED_HOSTS = ['yourdomain.com', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['https://earn-app.onrender.com', 'localhost', '127.0.0.1']
 
 
 
