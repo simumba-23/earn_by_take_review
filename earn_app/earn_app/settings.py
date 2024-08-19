@@ -90,7 +90,7 @@ import os
 import dj_database_url
 DATABASES = {
     'default': dj_database_url.config(
-        default='postgresql://postgres:12345@localhost:5432/earnApp',
+        default='postgresql://payme_r9ju_user:UKvU84aF7qDkeTCxgvzKAlPqa5uvi5ud@dpg-cr1k3f5umphs73af5090-a/payme_r9ju',
         conn_max_age=600
     )
 }
