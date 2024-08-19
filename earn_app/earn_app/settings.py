@@ -28,7 +28,8 @@ SECRET_KEY = 'django-insecure-)qu*zoix$-@f-wp@9hw2ycnf2hjlas38&vcpskazc0_dxsy7mc
 DEBUG = False
 
 # ALLOWED_HOSTS = []
-ALLOWED_HOSTS = ['earn_app.onrender.com']
+ALLOWED_HOSTS = ['yourdomain.com', 'localhost', '127.0.0.1']
+
 
 
 # Application definition
@@ -86,30 +87,20 @@ CORS_ORIGIN_ALLOW_ALL = True
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 import os
 import dj_database_url
-import environ
 
-env = environ.Env()
-environ.Env.read_env()
+DATABASES = {
+    'default': {
 
-if env('DJANGO_ENV') == 'production':
-    DATABASES = {
-        'default': dj_database_url.config(conn_max_age=600)
+'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'earnApp',
+        'USER': 'postgres',
+        'PASSWORD': '12345',
+        'HOST': 'localhost',
+        'PORT': '5432'
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / "db.sqlite3",
-        }
-    }
+    
+}
 
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
 
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
