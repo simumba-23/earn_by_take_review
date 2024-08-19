@@ -81,7 +81,9 @@ TEMPLATES = [
 WSGI_APPLICATION = 'earn_app.wsgi.application'
 
 
-CORS_ORIGIN_ALLOW_ALL = True
+CORS_ALLOWED_ORIGINS = [
+    'https://frontearn.onrender.com/',
+]
 
 
 # Database
