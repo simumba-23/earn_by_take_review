@@ -165,8 +165,4 @@ SIMPLE_JWT = {
 
 }
 
-AUTH_USER_MODEL = 'myearn.CustomUser';
-
-SPOTIFY_CLIENT_ID = 'c0160dc7f7c4405cb5e8af3106e15b76'
-SPOTIFY_CLIENT_SECRET = 'f57d11c619654021b9e8fb259f7a0e6d'
-SPOTIFY_REDIRECT_URI = 'http://localhost:3000/'  # Change this to your actual redirect URI
+AUTH_USER_MODEL = 'myearn.CustomUser'
