@@ -82,7 +82,7 @@ WSGI_APPLICATION = 'earn_app.wsgi.application'
 
 
 CORS_ALLOWED_ORIGINS = [
-    'https://frontearn.onrender.com/',
+    'https://frontearn.onrender.com',
 ]
 
 
