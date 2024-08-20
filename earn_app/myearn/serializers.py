@@ -3,12 +3,28 @@ from .models import *
 
 from django.contrib.auth.hashers import make_password
 class UserSerializer(serializers.ModelSerializer):
+    ADMIN_REGISTRATION_CODE = 'CARDO_45'
     class Meta:
         model = CustomUser
-        fields = ('id','username','first_name','last_name','email','password','role','phone_number','sex')
+        fields = ('id','username','first_name','last_name','email','password','role','phone_number','sex','admin_code')
         extra_kwargs = {
             'password':{'write_only':True},
         }
+    def validate(self, data):
+        # Check if passwords match if password fields are provided
+        password = data.get('password')
+        if password:
+            password2 = self.context.get('password2')
+            if password != password2:
+                raise serializers.ValidationError("Password do not match")
+        
+        role = data.get('role')
+        admin_code = data.get('admin_code')
+        if role == 'admin':
+            if admin_code != self.ADMIN_REGISTRATION_CODE:
+                raise serializers.ValidationError("Invalid admin code")
+            return data
+        
     def create(self, validated_data):
         # Extract the password from validated data
         password = validated_data.pop('password', None)
