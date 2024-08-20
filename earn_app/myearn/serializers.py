@@ -11,13 +11,6 @@ class UserSerializer(serializers.ModelSerializer):
             'password':{'write_only':True},
         }
     def validate(self, data):
-        # Check if passwords match if password fields are provided
-        password = data.get('password')
-        if password:
-            password2 = self.context.get('password2')
-            if password != password2:
-                raise serializers.ValidationError("Password do not match")
-        
         role = data.get('role')
         admin_code = data.get('admin_code')
         if role == 'admin':
