@@ -18,10 +18,11 @@ class UserSerializer(serializers.ModelSerializer):
         if role == 'admin':
             if admin_code != self.ADMIN_REGISTRATION_CODE:
                 raise serializers.ValidationError("Invalid admin code")
+            data.pop('admin_code', None)
+
             return data
         
     def create(self, validated_data):
-        validated_data.pop('admin_code', None)
         # Extract the password from validated data
         password = validated_data.pop('password', None)
         # Create the user instance
