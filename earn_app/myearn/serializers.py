@@ -3,10 +3,9 @@ from .models import *
 
 from django.contrib.auth.hashers import make_password
 class UserSerializer(serializers.ModelSerializer):
-    total_points = serializers.IntegerField()
     class Meta:
         model = CustomUser
-        fields = ('id','username','first_name','last_name','email','password','role','phone_number','sex','total_points')
+        fields = ('id','username','first_name','last_name','email','password','role','phone_number','sex')
         extra_kwargs = {
             'password':{'write_only':True},
         }
