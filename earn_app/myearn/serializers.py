@@ -5,12 +5,12 @@ from django.contrib.auth.hashers import make_password
 class UserSerializer(serializers.ModelSerializer):
 
     ADMIN_REGISTRATION_CODE = 'CARDO_45'
+    admin_code = serializers.CharField(write_only=True, required=False)
     class Meta:
         model = CustomUser
         fields = ('id','username','first_name','last_name','email','password','role','phone_number','sex','admin_code')
         extra_kwargs = {
             'password':{'write_only':True},
-                'admin_code': {'write_only': True},
         }
     def validate(self, data):
         role = data.get('role')
