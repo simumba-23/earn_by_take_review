@@ -13,24 +13,26 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 import os
+from decouple import config,Csv
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load environment variables
+ENVIRONMENT = config('ENVIRONMENT', default='development')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-)qu*zoix$-@f-wp@9hw2ycnf2hjlas38&vcpskazc0_dxsy7mc'
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-)qu*zoix$-@f-wp@9hw2ycnf2hjlas38&vcpskazc0_dxsy7mc')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-# ALLOWED_HOSTS = []
-ALLOWED_HOSTS = ['earn-app.onrender.com', 'localhost', '127.0.0.1']
-
-
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost', cast=Csv())
 
 # Application definition
 
@@ -82,20 +84,30 @@ WSGI_APPLICATION = 'earn_app.wsgi.application'
 
 
 CORS_ALLOWED_ORIGINS = [
-    'https://frontearn.onrender.com',
+    'https://frontearn.onrender.com',  # Production frontend URL
+    'http://127.0.0.1:3000',  # Local development URL
+    'http://localhost:3000',  # Local development URL
 ]
-
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
-import os
-import dj_database_url
+# Database configuration for PostgreSQL
 DATABASES = {
-    'default': dj_database_url.config(
-        default='postgresql://payme_r9ju_user:UKvU84aF7qDkeTCxgvzKAlPqa5uvi5ud@dpg-cr1k3f5umphs73af5090-a/payme_r9ju',
-        conn_max_age=600
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('DB_NAME'),
+        'USER': config('DB_USER'),
+        'PASSWORD': config('DB_PASSWORD'),
+        'HOST': config('DB_HOST', default='localhost'),
+        'PORT': config('DB_PORT', default='5432'),
+    }
 }
+
+# Use dj-database-url to handle production database settings
+if ENVIRONMENT == 'production':
+    DATABASES['default'] = dj_database_url.config(default=config('DATABASE_URL'))
+
+
 
 
 REST_FRAMEWORK = {
@@ -138,7 +150,11 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
 STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+if ENVIRONMENT == 'production':
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+else:
+    STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
