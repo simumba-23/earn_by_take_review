@@ -112,4 +112,40 @@ class VirtualWalletSerializer(serializers.ModelSerializer):
     class Meta:
         model = VirtualWallet
         fields = ['user', 'balance']
+class InviteeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ['username', 'email', 'date_joined']  # Include any other relevant fields
 
+class ReferralRewardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReferralReward
+        fields = ['created_at', 'amount', 'reason']
+
+class ContactFormSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactFormSubmission
+        fields = ['user', 'name', 'email', 'phone_number', 'subject', 'message']
+        read_only_fields = ['user']  
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True)
+    confirm_password = serializers.CharField(required=True)
+
+    def validate(self, data):
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError("New passwords do not match")
+        return data
+
+    def validate_old_password(self, old_password):
+        user = self.context['request'].user
+        if not user.check_password(old_password):
+            raise serializers.ValidationError("Old password is incorrect")
+        return old_password
+
+class Generate2FASerializer(serializers.Serializer):
+    otp_url = serializers.CharField()
+
+class Verify2FASerializer(serializers.Serializer):
+    otp_code = serializers.CharField()

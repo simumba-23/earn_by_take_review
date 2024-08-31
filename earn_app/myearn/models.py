@@ -20,6 +20,8 @@ class CustomUser(AbstractUser):
     role = models.CharField(choices=ROLE_CHOICES, max_length=50, default='customer')
     phone_number = models.CharField(max_length=25)
     sex = models.CharField(max_length=25)
+    otp_secret = models.CharField(max_length=32, blank=True, null=True)
+    is_2fa_enabled = models.BooleanField(default=False)
 
     def __str__(self):
         return self.username
@@ -77,9 +79,23 @@ class UserTask(models.Model):
     
     def convert_points_to_money(self):
         return self.points_earned * POINTS_TO_MONEY_CONVERSION_RATE
+    
+    def handle_referral_reward(self):
+        if self.status == 'Completed':
+            # Get referral for the user
+            try:
+                referral = Referral.objects.get(invitee=self.user)
+                reward_amount = self.convert_points_to_money() * 0.20
+                # Create referral reward
+                ReferralReward.objects.create(user=referral.inviter, amount=reward_amount, reason=f"Referral reward for {self.user.username}'s task completion")
+                
+                # Update the inviter's wallet
+                wallet, created = VirtualWallet.objects.get_or_create(user=referral.inviter)
+                wallet.update_balance(reward_amount)
+            except Referral.DoesNotExist:
+                # No referral found
+                pass
 
-    
-    
 class Answer(models.Model):
     question = models.ForeignKey(Question, on_delete=models.CASCADE, null=True, blank=True)
     selected_option = models.ForeignKey(AnswerOption, on_delete=models.CASCADE, null=True, blank=True)
@@ -104,6 +120,7 @@ def update_wallet_balance(sender, instance, **kwargs):
     if instance.status == 'Completed':
         wallet, created = VirtualWallet.objects.get_or_create(user=instance.user)
         wallet.update_balance(instance.convert_points_to_money())
+        instance.handle_referral_reward()
 
 
 class WithdrawalRequest(models.Model):
@@ -181,6 +198,7 @@ class Blog(models.Model):
                 slug = f"{base_slug}-{''.join(random.choices(string.ascii_letters + string.digits, k=4))}"
             self.slug = slug
         super().save(*args, **kwargs)
+
 class Comment(models.Model):
     blog = models.ForeignKey(Blog, on_delete=models.CASCADE, related_name='comments')
     author = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
@@ -192,3 +210,41 @@ class Comment(models.Model):
         return f"Comment by {self.author.username} on {self.blog.title}"
     def get_replies(self):
         return self.replies.all()
+
+class Referral(models.Model):
+    inviter = models.ForeignKey(CustomUser, related_name='referrals', on_delete=models.CASCADE)
+    invitee = models.OneToOneField(CustomUser, related_name='referral', on_delete=models.CASCADE,null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    referral_code = models.CharField(max_length=100, unique=True)
+    def save(self, *args, **kwargs):
+        if not self.referral_code:
+            self.referral_code = self.generate_unique_code()
+        super().save(*args, **kwargs)
+
+    def generate_unique_code(self):
+        return f'{self.inviter.id}-{self.inviter.username}'
+
+    def get_referral_link(self):
+        return f'https://frontearn.onrender.com/?referral={self.referral_code}'
+    
+    def __str__(self):
+        return f"{self.inviter.username} invited {self.invitee.username if self.invitee else 'N/A'}"
+
+class ReferralReward(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    reason = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} - ${self.amount} for {self.reason}"
+
+
+class ContactFormSubmission(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True, blank=True)
+    name = models.CharField(max_length=100)
+    email = models.EmailField()
+    phone_number = models.CharField(max_length=20)
+    subject = models.CharField(max_length=50)
+    message = models.TextField()
+    submitted_at = models.DateTimeField(auto_now_add=True)

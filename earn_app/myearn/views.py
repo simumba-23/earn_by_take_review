@@ -440,5 +440,123 @@ def get_access_token(request):
     )
 
     return JsonResponse(response.json())
-    
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def referral_link_view(request):
+    user = request.user
+    
+    # Fetch or create the referral object for the authenticated user
+    referral, created = Referral.objects.get_or_create(inviter=user,invitee=None)
+    
+    if created:
+        referral_link = referral.get_referral_link()
+        referral.link = referral_link
+        referral.save()
+    else:
+        referral_link = referral.get_referral_link()
+    
+    return Response({
+        'referral_link': referral_link,
+        'created': created
+    }, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+def create_referral_view(request):
+    invitee_email = request.data.get('invitee')
+    invitee = CustomUser.objects.get(email=invitee_email)
+    referral = Referral.objects.create(inviter=request.user, invitee=invitee)
+    return Response({'message': 'Referral created successfully'})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def invitees_list_view(request):
+    user = request.user
+    referrals = Referral.objects.filter(inviter=user).select_related('invitee')
+    invitees = [referral.invitee for referral in referrals if referral.invitee]
+    serializer = InviteeSerializer(invitees, many=True)
+    return Response(serializer.data, status=200)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def referral_earnings_report(request):
+    try:
+        referral_rewards = ReferralReward.objects.filter(user=request.user)
+        serializer = ReferralRewardSerializer(referral_rewards, many=True)
+        
+        # Calculate total earnings
+        total_earnings = sum(reward['amount'] for reward in serializer.data)
+        
+        response_data = {
+            'referral_rewards': serializer.data,
+            'total_earnings': total_earnings
+        }
+        return Response(response_data)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+@api_view(['POST'])
+def contact_form_submission(request):
+    # Create serializer instance with data
+    serializer = ContactFormSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        # If the user is authenticated, set the user field
+        if request.user.is_authenticated:
+            serializer.save(user=request.user)
+        else:
+            serializer.save()
+        
+        return Response({'message': 'Thank you for reaching out! We will get back to you soon.'}, status=status.HTTP_201_CREATED)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
+    if serializer.is_valid():
+        user = request.user
+        old_password = serializer.validated_data['old_password']
+        new_password = serializer.validated_data['new_password']
+        
+        # Check if old password is correct
+        if not user.check_password(old_password):
+            return Response({'status': 'error', 'message': 'Old password is incorrect'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update the user's password
+        user.set_password(new_password)
+        user.save()
+        
+        return Response({'status': 'success', 'message': 'Password changed successfully'}, status=status.HTTP_200_OK)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def generate_2fa_qr_code(request):
+    user = request.user
+    if not user.otp_secret:
+        user.otp_secret = pyotp.random_base32()
+        user.save()
+
+    totp = pyotp.TOTP(user.otp_secret)
+    otp_url = totp.provisioning_uri(name=user.username, issuer_name="earn_app")
+    return Response({'otp_url': otp_url}, status=status.HTTP_200_OK)
+import pyotp
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_2fa(request):
+    user = request.user
+    otp_code = request.data.get('otp_code')
+    
+    if not otp_code:
+        return Response({'detail': 'OTP code is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    totp = pyotp.TOTP(user.otp_secret)
+    if totp.verify(otp_code):
+        user.is_2fa_enabled = True
+        user.save()
+        return Response({'status': 'success'}, status=status.HTTP_200_OK)
+    else:
+        return Response({'detail': 'Invalid OTP code'}, status=status.HTTP_400_BAD_REQUEST)

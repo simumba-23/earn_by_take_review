@@ -27,9 +27,15 @@ urlpatterns = [
     path('comments/<int:pk>/', views.comment_detail, name='comment-detail'),
     path('categories', views.get_categories),
     path('tags', views.get_tags),
-    path('spotify-token', views.get_access_token, name='spotify-token')
-
-
+    path('spotify-token', views.get_access_token, name='spotify-token'),
+    path('referral-link', views.referral_link_view, name='referral-link'),
+    path('create-referral', views.create_referral_view, name='create-referral'),
+    path('invitee-lists',views.invitees_list_view, name="invitee-lists"),
+    path('referral-earnings', views.referral_earnings_report, name='referral_earnings_report'),
+    path('contact_form_submission',views.contact_form_submission,name="contact_form_submission"),
+    path('change-password', views.change_password, name='change_password'),
+    path('generate_2fa_qr_code',views.generate_2fa_qr_code, name="generate_2fa_qr_code"),
+    path('verify_2fa', views.verify_2fa,name="verify-2fa"),
 ]
 
 

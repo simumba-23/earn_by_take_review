@@ -43,7 +43,16 @@ class BlogAdmin(admin.ModelAdmin):
 class CommentAdmin(admin.ModelAdmin):
     list_display = ('blog', 'author', 'created_at')
     search_fields = ('content',)
+@admin.register(Referral)
+class ReferralAdmin(admin.ModelAdmin):
+    list_display = ('inviter', 'invitee', 'created_at')
+    search_fields = ('inviter__username', 'invitee__username')
 
+@admin.register(ReferralReward)
+class ReferralRewardAdmin(admin.ModelAdmin):
+    list_display = ('user', 'amount', 'reason', 'created_at')
+    search_fields = ('user__username',)
+    
 admin.site.register(CustomUser,CustomUserAdmin)
 admin.site.register(Task, TaskAdmin)
 admin.site.register(UserTask)
