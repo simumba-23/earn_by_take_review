@@ -1,3 +1,4 @@
+import requests
 import logging
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import api_view,permission_classes
@@ -8,14 +9,12 @@ from .serializers import *
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from decimal import Decimal
 from django.db.models import Sum,Avg,Count,ExpressionWrapper,F,DecimalField,FloatField,Q
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
-
-
 from .models import *
 from datetime import timezone
 from rest_framework_simplejwt.views import TokenObtainPairView
-
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
@@ -497,6 +496,19 @@ def referral_earnings_report(request):
 
 @api_view(['POST'])
 def contact_form_submission(request):
+    recaptcha_response = request.data.get('g-recaptcha-response')
+    secret_key = settings.RECAPTCHA_SECRET_KEY
+
+    # Verify reCAPTCHA
+    data = {
+        'secret': secret_key,
+        'response': recaptcha_response
+    }
+    recaptcha_verification = requests.post('https://www.google.com/recaptcha/api/siteverify', data=data)
+    result = recaptcha_verification.json()
+
+    if not result.get('success'):
+        return Response({'message': 'Invalid reCAPTCHA. Please try again.'}, status=status.HTTP_400_BAD_REQUEST)
     # Create serializer instance with data
     serializer = ContactFormSerializer(data=request.data)
     

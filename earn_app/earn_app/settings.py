@@ -135,6 +135,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+RECAPTCHA_SECRET_KEY = '6LduPDQqAAAAAPdoNsgIDS2ktJDte84BZcnpioZ7'
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
