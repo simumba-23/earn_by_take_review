@@ -281,7 +281,57 @@ def create_withdrawal_request(request):
             return Response({'error': 'Insufficient balance'}, status=status.HTTP_400_BAD_REQUEST)
     except VirtualWallet.DoesNotExist:
         return Response({'error': 'Wallet does not exist'}, status=status.HTTP_400_BAD_REQUEST)
-    
+
+@api_view(['GET'])
+def leaderboard(request):
+    try:
+        wallets = VirtualWallet.objects.all().order_by('-balance')
+        serializer = VirtualWalletSerializer(wallets, many=True)
+        
+        leaderboard = []
+        for rank, wallet_data in enumerate(serializer.data, start=1):
+            wallet_data['rank'] = rank
+            leaderboard.append(wallet_data)
+
+        # Get the payout list (top 200 users)
+        payout_list = leaderboard[:200]
+
+        # Get the waitlist (users after the top 200)
+        waitlist = leaderboard[200:]
+
+        # Get the logged-in user's wallet
+        user_data = None
+        if request.user.is_authenticated:
+            user_wallet = VirtualWallet.objects.get(user=request.user)
+            user_rank = next((item['rank'] for item in leaderboard if item['user'] == request.user.username), None)
+            
+            # Calculate future weeks' position
+            future_weeks = []
+            if user_rank:
+                current_rank = user_rank
+                week = 1
+                while current_rank > 200:
+                    current_rank -= 200
+                    future_weeks.append({'week': week, 'rank': current_rank})
+                    week += 1
+
+            user_data = {
+                'rank': user_rank,
+                'balance': user_wallet.balance,
+                'future_weeks': future_weeks
+            }
+
+        response_data = {
+            'leaderboard': leaderboard,
+            'user_data': user_data,
+            'payout_list': payout_list,
+            'waitlist': waitlist
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def list_withdrawal_requests(request):
@@ -572,3 +622,19 @@ def verify_2fa(request):
         return Response({'status': 'success'}, status=status.HTTP_200_OK)
     else:
         return Response({'detail': 'Invalid OTP code'}, status=status.HTTP_400_BAD_REQUEST)
+    
+@api_view(['GET','PUT'])
+@permission_classes([IsAuthenticated])
+def profileDetails(request):
+    user = request.user
+    if not user.is_authenticated:
+        return Response({"detail": "Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
+    if request.method =='GET':
+        serializers = UserSerializer(user)
+        return Response(serializers.data)
+    elif request.method == 'PUT':
+        serializer = UserSerializer(user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

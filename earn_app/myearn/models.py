@@ -9,7 +9,7 @@ import string
 from django.utils.text import slugify
 from decimal import Decimal
 
-POINTS_TO_MONEY_CONVERSION_RATE = 0.0029
+POINTS_TO_MONEY_CONVERSION_RATE = Decimal('0.0029')
 
 
 class CustomUser(AbstractUser):
@@ -78,14 +78,14 @@ class UserTask(models.Model):
         return f"{self.user.username} - {self.task.name}"
     
     def convert_points_to_money(self):
-        return self.points_earned * POINTS_TO_MONEY_CONVERSION_RATE
+        return Decimal(self.points_earned) * POINTS_TO_MONEY_CONVERSION_RATE
     
     def handle_referral_reward(self):
         if self.status == 'Completed':
             # Get referral for the user
             try:
                 referral = Referral.objects.get(invitee=self.user)
-                reward_amount = self.convert_points_to_money() * 0.20
+                reward_amount = self.convert_points_to_money() * Decimal('0.20')
                 # Create referral reward
                 ReferralReward.objects.create(user=referral.inviter, amount=reward_amount, reason=f"Referral reward for {self.user.username}'s task completion")
                 
@@ -113,6 +113,7 @@ class VirtualWallet(models.Model):
     
     def update_balance(self, amount):
         self.balance += Decimal(amount)
+        # print(amount)
         self.save()
 
 @receiver(post_save, sender=UserTask)

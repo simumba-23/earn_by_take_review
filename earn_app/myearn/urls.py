@@ -36,6 +36,8 @@ urlpatterns = [
     path('change-password', views.change_password, name='change_password'),
     path('generate_2fa_qr_code',views.generate_2fa_qr_code, name="generate_2fa_qr_code"),
     path('verify_2fa', views.verify_2fa,name="verify-2fa"),
+    path('profile-details',views.profileDetails, name="profile_details"),
+    path('leaderboard',views.leaderboard, name='leaderboad'),
 ]
 
 
