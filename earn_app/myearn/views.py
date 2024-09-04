@@ -638,3 +638,24 @@ def profileDetails(request):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_history(request):
+    user = request.user
+    
+    # Get Earning History
+    earnings = EarningHistory.objects.filter(user=user).order_by('-created_at')
+    earnings_serializer = EarningHistorySerializer(earnings, many=True)
+    
+    # Get Transaction History
+    transactions = TransactionHistory.objects.filter(user=user).order_by('-created_at')
+    transactions_serializer = TransactionHistorySerializer(transactions, many=True)
+    
+    # Combine Data
+    response_data = {
+        'earnings': earnings_serializer.data,
+        'transactions': transactions_serializer.data,
+    }
+    
+    return Response(response_data)

@@ -38,6 +38,7 @@ urlpatterns = [
     path('verify_2fa', views.verify_2fa,name="verify-2fa"),
     path('profile-details',views.profileDetails, name="profile_details"),
     path('leaderboard',views.leaderboard, name='leaderboad'),
+    path('user_history', views.user_history, name='user-history'),
 ]
 
 

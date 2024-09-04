@@ -149,3 +149,13 @@ class Generate2FASerializer(serializers.Serializer):
 
 class Verify2FASerializer(serializers.Serializer):
     otp_code = serializers.CharField()
+
+class TransactionHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TransactionHistory
+        fields = ['id', 'amount', 'description', 'created_at']
+
+class EarningHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EarningHistory
+        fields = ['id', 'user_task', 'points_earned', 'money_earned', 'created_at']

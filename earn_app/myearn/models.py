@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.contrib.auth.models import AbstractUser
 # from datetime import timedelta,timezone
 from django.utils import timezone
@@ -19,6 +20,7 @@ class CustomUser(AbstractUser):
     )
     role = models.CharField(choices=ROLE_CHOICES, max_length=50, default='customer')
     phone_number = models.CharField(max_length=25)
+    image_url = models.ImageField(upload_to='profiles')
     sex = models.CharField(max_length=25)
     otp_secret = models.CharField(max_length=32, blank=True, null=True)
     is_2fa_enabled = models.BooleanField(default=False)
@@ -92,9 +94,63 @@ class UserTask(models.Model):
                 # Update the inviter's wallet
                 wallet, created = VirtualWallet.objects.get_or_create(user=referral.inviter)
                 wallet.update_balance(reward_amount)
+                
+                # Log the referral reward transaction
+                TransactionHistory.log_transaction(
+                    user=referral.inviter,
+                    transaction_type='Referral Reward',
+                    amount=reward_amount,
+                    description=f"Referral reward for {self.user.username}'s task completion"
+                )
             except Referral.DoesNotExist:
                 # No referral found
                 pass
+class EarningHistory(models.Model):
+    user_task = models.OneToOneField(UserTask, on_delete=models.CASCADE, related_name='earning_history')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='earning_histories')
+    points_earned = models.IntegerField()
+    money_earned = models.DecimalField(max_digits=10, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Earning History for {self.user.username} - {self.points_earned} points"
+
+    @staticmethod
+    def create_history(user_task):
+        if user_task.status == 'Completed':
+            money_earned = user_task.convert_points_to_money()
+            EarningHistory.objects.create(
+                user_task=user_task,
+                user=user_task.user,
+                points_earned=user_task.points_earned,
+                money_earned=money_earned
+            )
+
+class TransactionHistory(models.Model):
+    TRANSACTION_TYPES = (
+        ('Earning', 'Earning'),
+        ('Withdrawal', 'Withdrawal'),
+        ('Referral Reward', 'Referral Reward'),
+    )
+    
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='transaction_histories')
+    transaction_type = models.CharField(choices=TRANSACTION_TYPES, max_length=50)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    description = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.transaction_type} - ${self.amount}"
+
+    @staticmethod
+    def log_transaction(user, transaction_type, amount, description):
+        TransactionHistory.objects.create(
+            user=user,
+            transaction_type=transaction_type,
+            amount=amount,
+            description=description
+        )
+
 
 class Answer(models.Model):
     question = models.ForeignKey(Question, on_delete=models.CASCADE, null=True, blank=True)
@@ -120,9 +176,21 @@ class VirtualWallet(models.Model):
 def update_wallet_balance(sender, instance, **kwargs):
     if instance.status == 'Completed':
         wallet, created = VirtualWallet.objects.get_or_create(user=instance.user)
-        wallet.update_balance(instance.convert_points_to_money())
-        instance.handle_referral_reward()
+        amount_earned = instance.convert_points_to_money()
+        wallet.update_balance(amount_earned)
 
+        # Log the earning transaction
+        TransactionHistory.log_transaction(
+            user=instance.user,
+            transaction_type='Earning',
+            amount=amount_earned,
+            description=f"Earned from task {instance.task.name}"
+        )
+        # Create earning history record
+        EarningHistory.create_history(instance)
+        
+        # Handle referral reward
+        instance.handle_referral_reward()
 
 class WithdrawalRequest(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
@@ -133,18 +201,60 @@ class WithdrawalRequest(models.Model):
 
     def __str__(self):
         return f"{self.user.username} $ {self.amount}"
+        
+    def validate_withdrawal_day(self):
+        today = timezone.now().weekday()
+        if today not in [0,1,2,3,4 ]:  # 0: Monday, 4: friday
+            raise ValidationError("Withdrawals are only allowed from Monday to Friday.")
+
+    def validate_minimum_amount(self):
+        # Check if this is the user's first withdrawal
+        first_withdrawal = not WithdrawalRequest.objects.filter(user=self.user).exists()
+        if first_withdrawal and self.amount < Decimal('5.00'):
+            raise ValidationError("The minimum withdrawal amount for the first withdrawal is $ 5.")
+
+    def validate_invitation_count(self):
+        if not WithdrawalRequest.objects.filter(user=self.user).exists():
+            # No need to validate invitations for the first withdrawal
+            return
+        # Check if the user has invited at least 15 people
+        invite_count = Referral.objects.filter(inviter=self.user).count()
+        if invite_count < 15:
+            raise ValidationError("You must invite at least 15 people for subsequent withdrawals.")
+
+    def clean(self):
+        self.validate_withdrawal_day()
+        self.validate_minimum_amount()
+        self.validate_invitation_count()
     
     def approve(self):
         if self.status == 'pending':
             self.status = 'approved'
             self.save()
+            # Log the withdrawal transaction
+            TransactionHistory.log_transaction(
+                user=self.user,
+                transaction_type='Withdrawal',
+                amount=self.amount,
+                description=f"Withdrawal of ${self.amount}"
+            )
+            
             return True
         return False
 
     def reject(self):
         if self.status == 'pending':
             wallet = VirtualWallet.objects.get(user=self.user)
-            wallet.update_balance(self.amount)  # Refund the amount
+            # Refund the amount
+            wallet.update_balance(self.amount)  
+
+            # Log the rejected withdrawal transaction
+            TransactionHistory.log_transaction(
+                user=self.user,
+                transaction_type='Withdrawal',
+                amount=-self.amount,
+                description=f"Rejected withdrawal refund of ${self.amount}"
+            )
             self.status = 'rejected'
             self.save()
             return True
