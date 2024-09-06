@@ -180,12 +180,19 @@ def user_task_stats(request):
     wallet_balance = VirtualWallet.objects.filter(user=user).aggregate(wallet_balance = models.Sum('balance'))['wallet_balance']
     pending_total = WithdrawalRequest.objects.filter(status='pending').aggregate(total_amount=Sum('amount'))['total_amount'] or 0
     approved_total = WithdrawalRequest.objects.filter(status='approved').aggregate(total_amount=Sum('amount'))['total_amount'] or 0
-    task_completion_rate = UserTask.objects.aggregate(
-    completion_rate=ExpressionWrapper(
-        Count('id', filter=Q(status='Completed')) * 100.0 / Count('id'),
-        output_field=FloatField()
+    aggregated_data = UserTask.objects.aggregate(
+        total_count=Count('id'),
+        completed_count=Count('id', filter=Q(status='Completed'))
     )
-    )['completion_rate']
+    
+    total_count = aggregated_data['total_count']
+    completed_count = aggregated_data['completed_count']
+    
+    if total_count == 0:
+        task_completion_rate = 0.0
+    else:
+        task_completion_rate = (completed_count * 100.0) / total_count
+
     return Response({
         "total_points": total_points,
         "total_tasks": total_tasks,
@@ -229,12 +236,19 @@ def admin_reports(request):
     total_transactions_count = WithdrawalRequest.objects.count()
     users_with_highest_wallet_balances = VirtualWallet.objects.order_by('-balance')[:10]
     users_with_highest_wallet_balances_serialized = VirtualWalletSerializer(users_with_highest_wallet_balances, many=True).data
-    task_completion_rate = UserTask.objects.aggregate(
-    completion_rate=ExpressionWrapper(
-        Count('id', filter=Q(status='Completed')) * 100.0 / Count('id'),
-        output_field=FloatField()
+    aggregated_data = UserTask.objects.aggregate(
+        total_count=Count('id'),
+        completed_count=Count('id', filter=Q(status='Completed'))
     )
-)['completion_rate']
+    
+    total_count = aggregated_data['total_count']
+    completed_count = aggregated_data['completed_count']
+    
+    if total_count == 0:
+        task_completion_rate = 0.0
+    else:
+        task_completion_rate = (completed_count * 100.0) / total_count
+
 
     return Response({
     "total_users": total_users,
