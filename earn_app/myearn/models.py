@@ -44,28 +44,6 @@ class Task(models.Model):
 
     def __str__(self):
         return self.name
-
-class Survey(models.Model):
-    task = models.OneToOneField(Task, on_delete=models.CASCADE)
-    title = models.CharField(max_length=255)
-
-    def __str__(self):
-        return self.title
-
-class Question(models.Model):
-    survey = models.ForeignKey(Survey, on_delete=models.CASCADE)
-    text = models.TextField()
-    is_multiple_choice = models.BooleanField(default=False)
-
-    def __str__(self):
-        return self.text
-class AnswerOption(models.Model):
-    question = models.ForeignKey(Question, related_name='options', on_delete=models.CASCADE)
-    text = models.CharField(max_length=255)
-
-    def __str__(self):
-        return self.text
-
 class UserTask(models.Model):
     STATUS_CHOICES = (
         ('Pending', 'Pending'),
@@ -150,6 +128,28 @@ class TransactionHistory(models.Model):
             amount=amount,
             description=description
         )
+
+
+class Survey(models.Model):
+    task = models.OneToOneField(Task, on_delete=models.CASCADE)
+    title = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.title
+
+class Question(models.Model):
+    survey = models.ForeignKey(Survey, on_delete=models.CASCADE)
+    text = models.TextField()
+    is_multiple_choice = models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.text
+class AnswerOption(models.Model):
+    question = models.ForeignKey(Question, related_name='options', on_delete=models.CASCADE)
+    text = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.text
 
 
 class Answer(models.Model):

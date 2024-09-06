@@ -30,6 +30,17 @@ class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = ['id','name','points','media_url','task_type']
+class UserTaskSerializer(serializers.ModelSerializer):
+    task = TaskSerializer()
+
+    class Meta:
+        model = UserTask
+        fields = ['id', 'user', 'task', 'status', 'points_earned', 'created_at']
+
+    def get_progress(self, obj):
+        total_tasks = Task.objects.count()
+        completed_tasks = UserTask.objects.filter(user=obj.user, status='Completed').count()
+        return (completed_tasks / total_tasks) * 100
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -117,10 +128,24 @@ class InviteeSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = ['username', 'email', 'date_joined']  # Include any other relevant fields
 
+class ReferralSerializer(serializers.ModelSerializer):
+    invitees_count = serializers.SerializerMethodField()
+    class Meta:
+        model = Referral
+        fields = ['inviter', 'invitee', 'created_at', 'referral_code','invitees_count']
+    def get_invitees_count(self, obj):
+        return Referral.get_inviter_status(obj.inviter)
+
+    def get_status(self, obj):
+        referrals_count = Referral.objects.filter(inviter=obj.inviter).count()
+        return f"{referrals_count}/15"  # Adjust based on your logic
+
+
 class ReferralRewardSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReferralReward
         fields = ['created_at', 'amount', 'reason']
+
 
 class ContactFormSerializer(serializers.ModelSerializer):
     class Meta:

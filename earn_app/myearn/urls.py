@@ -39,6 +39,9 @@ urlpatterns = [
     path('profile-details',views.profileDetails, name="profile_details"),
     path('leaderboard',views.leaderboard, name='leaderboad'),
     path('user_history', views.user_history, name='user-history'),
+    path('task-progress', views.task_progress, name='task-progress'),
+    path('recent-activities', views.recent_activities, name='recent-activities'),
+    path('referral-status', views.referral_status, name='referral-status'),
 ]
 
 

@@ -180,13 +180,20 @@ def user_task_stats(request):
     wallet_balance = VirtualWallet.objects.filter(user=user).aggregate(wallet_balance = models.Sum('balance'))['wallet_balance']
     pending_total = WithdrawalRequest.objects.filter(status='pending').aggregate(total_amount=Sum('amount'))['total_amount'] or 0
     approved_total = WithdrawalRequest.objects.filter(status='approved').aggregate(total_amount=Sum('amount'))['total_amount'] or 0
+    task_completion_rate = UserTask.objects.aggregate(
+    completion_rate=ExpressionWrapper(
+        Count('id', filter=Q(status='Completed')) * 100.0 / Count('id'),
+        output_field=FloatField()
+    )
+    )['completion_rate']
     return Response({
         "total_points": total_points,
         "total_tasks": total_tasks,
         "completed_tasks": completed_tasks,
         "wallet_balance": wallet_balance,
         "pending_total":pending_total,
-        "approved_total":approved_total
+        "approved_total":approved_total,
+        " task_completion_rate": task_completion_rate,
 
     })
 
@@ -659,3 +666,24 @@ def user_history(request):
     }
     
     return Response(response_data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def task_progress(request):
+    tasks = UserTask.objects.filter(user=request.user)
+    serializer = UserTaskSerializer(tasks, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def recent_activities(request):
+    activities = TransactionHistory.objects.filter(user=request.user).order_by('-created_at')[:10]
+    serializer = TransactionHistorySerializer(activities, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def referral_status(request):
+    referrals = Referral.objects.filter(inviter=request.user)
+    serializer = ReferralSerializer(referrals, many=True)
+    return Response(serializer.data)
