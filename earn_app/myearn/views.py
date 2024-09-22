@@ -1,8 +1,10 @@
 import requests
 import logging
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import api_view,permission_classes
+from rest_framework.decorators import api_view,permission_classes,parser_classes
+from rest_framework.parsers import MultiPartParser,FormParser
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import AccessToken
 from django.contrib.auth.models import User
 from rest_framework import status
 from .serializers import *
@@ -10,10 +12,12 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from decimal import Decimal
 from django.db.models import Sum,Avg,Count,ExpressionWrapper,F,DecimalField,FloatField,Q
 from django.conf import settings
+from django.core.mail import send_mail
+
 
 logger = logging.getLogger(__name__)
 from .models import *
-from datetime import timezone
+from django.utils import timezone
 from rest_framework_simplejwt.views import TokenObtainPairView
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -250,6 +254,24 @@ def admin_reports(request):
         task_completion_rate = (completed_count * 100.0) / total_count
 
 
+    now = timezone.now()
+    last_24_hours = now - timezone.timedelta(hours=24)
+    total_visits = Visit.objects.filter(timestamp__gte=last_24_hours).count()
+    new_users = CustomUser.objects.filter(date_joined__gte=last_24_hours).count()
+    aggregated_data = UserTask.objects.filter(created_at__gte=last_24_hours).aggregate(
+        total_counts=Count('id'),
+        completed_counts=Count('id', filter=Q(status='Completed'))
+    )
+
+    total_counts = aggregated_data['total_counts']  # Corrected field name
+    completed_counts = aggregated_data['completed_counts']  # Corrected field name
+
+    if total_counts == 0:
+        task_completion_rate_per_24hrs = 0.0
+    else:
+        task_completion_rate_per_24hrs = (completed_counts * 100.0) / total_counts
+    
+
     return Response({
     "total_users": total_users,
     "active_users_count": active_users_count,
@@ -264,6 +286,10 @@ def admin_reports(request):
     "total_transactions_count":total_transactions_count,
     "users_with_highest_wallet_balances":users_with_highest_wallet_balances_serialized,
     "task_completion_rate":task_completion_rate,
+    "total_visits":total_visits,
+    "new_users":new_users,
+    "task_completion_rate_per_24hrs": task_completion_rate_per_24hrs,
+    
     })
 
 
@@ -290,7 +316,6 @@ def create_withdrawal_request(request):
         if wallet.balance >= amount:
             wallet.balance -= amount
             wallet.save()
-            
             withdrawal_request = WithdrawalRequest.objects.create(
                 user=user,
                 amount=amount,
@@ -315,38 +340,48 @@ def leaderboard(request):
             leaderboard.append(wallet_data)
 
         # Get the payout list (top 200 users)
-        payout_list = leaderboard[:200]
+        payout_list = leaderboard[:200] if leaderboard else []
 
         # Get the waitlist (users after the top 200)
-        waitlist = leaderboard[200:]
+        waitlist = leaderboard[200:] if leaderboard else []
 
         # Get the logged-in user's wallet
         user_data = None
         if request.user.is_authenticated:
-            user_wallet = VirtualWallet.objects.get(user=request.user)
-            user_rank = next((item['rank'] for item in leaderboard if item['user'] == request.user.username), None)
-            
-            # Calculate future weeks' position
-            future_weeks = []
-            if user_rank:
-                current_rank = user_rank
-                week = 1
-                while current_rank > 200:
-                    current_rank -= 200
-                    future_weeks.append({'week': week, 'rank': current_rank})
-                    week += 1
+            try:
+                user_wallet = VirtualWallet.objects.get(user=request.user)
+                user_rank = next((item['rank'] for item in leaderboard if item['user'] == request.user.username), None)
+                
+                # Calculate future weeks' position
+                future_weeks = []
+                if user_rank:
+                    current_rank = user_rank
+                    week = 1
+                    while current_rank > 200:
+                        current_rank -= 200
+                        future_weeks.append({'week': week, 'rank': current_rank})
+                        week += 1
 
-            user_data = {
-                'rank': user_rank,
-                'balance': user_wallet.balance,
-                'future_weeks': future_weeks
-            }
+                user_data = {
+                    'rank': user_rank,
+                    'balance': user_wallet.balance,
+                    'future_weeks': future_weeks
+                }
+            except VirtualWallet.DoesNotExist:
+                user_data = {
+                    'rank': None,
+                    'balance': 0,
+                    'future_weeks': []
+                }
+
 
         response_data = {
             'leaderboard': leaderboard,
             'user_data': user_data,
             'payout_list': payout_list,
-            'waitlist': waitlist
+            'waitlist': waitlist,
+            'payout_list_count': len(payout_list),
+            'waitlist_count': len(waitlist)
         }
         
         return Response(response_data, status=status.HTTP_200_OK)
@@ -390,23 +425,27 @@ def reject_withdrawal_request(request, pk):
 from rest_framework.pagination import PageNumberPagination   
 @api_view(['GET'])
 def blog_list(request):
-    # Initialize the pagination class
-    paginator = PageNumberPagination()
-    paginator.page_size = 10  # Number of items per page, adjust as needed
-
-    # Get the blogs and paginate them
     blogs = Blog.objects.all()
-    paginated_blogs = paginator.paginate_queryset(blogs, request)
-    serializer = BlogSerializer(paginated_blogs, many=True)
+    serializer = BlogSerializer(blogs,many=True)
     
-    # Return paginated response
-    return paginator.get_paginated_response(serializer.data)   
- 
+    return Response(serializer.data)   
+
+@api_view(['GET'])
+def blog_category(request,category_id):
+    try:
+        category = Category.objects.get(id=category_id)
+    except Category.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    blogs = Blog.objects.filter(categories=category)
+    serializers =BlogSerializer(blogs,many=True)
+    return Response(serializers.data)
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
 def create_blog(request):
-    author = request.user.id
-    print("author:",author)
+    author = request.user
+    print("author:", author)
     serializer = BlogSerializer(data=request.data, context={'request': request})
     if serializer.is_valid():
         serializer.save()
@@ -701,3 +740,88 @@ def referral_status(request):
     referrals = Referral.objects.filter(inviter=request.user)
     serializer = ReferralSerializer(referrals, many=True)
     return Response(serializer.data)
+
+@api_view(['POST'])
+def bulk_user_action(request):
+    serializer = BulkActionSerializer(data=request.data)
+    if serializer.is_valid():
+        action = serializer.validated_data['action']
+        user_ids = serializer.validated_data['user_ids']
+
+        users = CustomUser.objects.filter(id__in=user_ids)
+
+        if action == 'suspend':
+            users.update(is_active=False)
+        elif action == 'delete':
+            users.delete()
+        elif action == 'ban':
+            users.update(is_banned=True)
+        elif action == 'unban':
+            users.update(is_banned=False)
+        else:
+            return Response({'error': 'Invalid action'}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'status': 'success'}, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+def request_password_reset(request):
+    email = request.data.get('email')
+    try:
+        user = CustomUser.objects.get(email=email)
+        token = AccessToken.for_user(user)
+        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+        send_mail(
+            'Password Reset Request',
+            f'Click the link to reset your password: {reset_url}',
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
+        )
+        return Response({"message": "Password reset link sent"}, status=status.HTTP_200_OK)
+    except CustomUser.DoesNotExist:
+        return Response({"error": "User with this email does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+def reset_password(request):
+    token = request.data.get('token')
+    new_password = request.data.get('new_password')
+    try:
+        access_token = AccessToken(token)
+        user_id = access_token['user_id']
+        user = CustomUser.objects.get(id=user_id)
+        user.set_password(new_password)
+        user.save()
+        return Response({"message": "Password reset successful"}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": "Invalid token or token expired"}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def reward_list(request):
+    rewards = Reward.objects.all()
+    serializer = RewardSerializer(rewards, many=True)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_rewards(request):
+    serializers = RewardSerializer(data = request.data)
+    if serializers.is_valid():
+        serializers.save()
+        return Response(serializers.data, status=status.HTTP_201_CREATED)
+    return Response(serializers.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reward_claim(request):
+    serializer = RewardClaimSerializer(data=request.data)
+    if serializer.is_valid():
+        reward = Reward.objects.get(id=request.data['reward'])
+        total_points = UserTask.objects.filter(user=request.user).aggregate(total=models.Sum('points_earned'))['total'] or 0
+        claimed_points = RewardClaim.objects.filter(user=request.user).aggregate(total=models.Sum('reward__points_required'))['total'] or 0
+        available_points = total_points - claimed_points
+        if available_points < reward.points_required:
+            return Response({"error": "Not enough points to claim this reward."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save(user=request.user)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

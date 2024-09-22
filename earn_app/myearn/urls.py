@@ -21,6 +21,7 @@ urlpatterns = [
     path('withdrawal-requests/<int:pk>/approve', views.approve_withdrawal_request, name='approve_withdrawal_request'),
     path('withdrawal-requests/<int:pk>/reject', views.reject_withdrawal_request, name='reject_withdrawal_request'),
     path('blogs', views.blog_list, name='blog-list'),
+    path('blog_category/<int:category_id>/category',views.blog_category, name='blog_category'),
     path('create_blog', views.create_blog),
     path('blogs/<int:pk>/', views.blog_detail, name='blog-detail'),
     path('comments', views.comment_list, name='comment-list'),
@@ -42,6 +43,12 @@ urlpatterns = [
     path('task-progress', views.task_progress, name='task-progress'),
     path('recent-activities', views.recent_activities, name='recent-activities'),
     path('referral-status', views.referral_status, name='referral-status'),
+    path('bulk-action', views.bulk_user_action, name='bulk_user_action'),
+    path('request_password_reset', views.request_password_reset, name='request_password_reset'),
+    path('reset_password', views.reset_password, name='reset_password'),
+    path('create_rewards', views.create_rewards, name= 'create_rewards'),
+    path('rewards', views.reward_list, name='reward-list'),
+    path('claim-reward', views.reward_claim, name='reward-claim'),
 ]
 
 

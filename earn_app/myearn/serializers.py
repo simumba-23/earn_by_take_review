@@ -3,11 +3,12 @@ from .models import *
 
 from django.contrib.auth.hashers import make_password
 class UserSerializer(serializers.ModelSerializer):
-
+    total_points_earned = serializers.SerializerMethodField()
+    referral_status = serializers.SerializerMethodField()
     ADMIN_REGISTRATION_CODE = 'CARDO_45'
     class Meta:
         model = CustomUser
-        fields = ('id','username','first_name','last_name','email','password','role','phone_number','sex')
+        fields = ('id','username','first_name','last_name','email','password','role','phone_number','sex','is_active','is_banned','total_points_earned','referral_status','date_joined')
         extra_kwargs = {
             'password':{'write_only':True},
         }
@@ -22,6 +23,15 @@ class UserSerializer(serializers.ModelSerializer):
             user.password = make_password(password)
             user.save()
         return user
+    def get_total_points_earned(self, obj):
+        return UserTask.objects.filter(user=obj).aggregate(total_points=models.Sum('points_earned'))['total_points'] or 0
+    def get_referral_status(self, obj):
+        referrals_count = Referral.objects.filter(inviter=obj).count()
+        return f"{referrals_count}"
+class BulkActionSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(choices=['suspend', 'delete', 'ban', 'unban'])
+    user_ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
+    
 class SurveySerializer(serializers.ModelSerializer):
     class Meta:
         model = Survey
@@ -69,13 +79,11 @@ class BlogSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         categories_data = validated_data.pop('categories')
         tags_data = validated_data.pop('tags')
-        # Ensure the request context is provided and retrieve the user
         request = self.context.get('request')
         author = request.user if request else None
 
-        # Create the blog post with the author
         blog = Blog.objects.create(author=author, **validated_data)
-        blog.categories.set( categories_data)
+        blog.categories.set(categories_data)
         blog.tags.set(tags_data)
         return blog
 
@@ -112,7 +120,7 @@ class AnswerOptionSerializer(serializers.ModelSerializer):
 class AnswerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Answer
-        fields = ['id', 'question','selected_option']
+        fields = ['id','question','selected_option']
 
 class WithdrawalRequestSerializer(serializers.ModelSerializer):
     class Meta:
@@ -130,16 +138,16 @@ class InviteeSerializer(serializers.ModelSerializer):
 
 class ReferralSerializer(serializers.ModelSerializer):
     invitees_count = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+
     class Meta:
         model = Referral
-        fields = ['inviter', 'invitee', 'created_at', 'referral_code','invitees_count']
+        fields = ['inviter','invitee','created_at', 'referral_code','invitees_count','status']
     def get_invitees_count(self, obj):
-        return Referral.get_inviter_status(obj.inviter)
-
+        return Referral.objects.filter(inviter=obj.inviter).count()
     def get_status(self, obj):
         referrals_count = Referral.objects.filter(inviter=obj.inviter).count()
-        return f"{referrals_count}/15"  # Adjust based on your logic
-
+        return f"{referrals_count}" 
 
 class ReferralRewardSerializer(serializers.ModelSerializer):
     class Meta:
@@ -178,9 +186,24 @@ class Verify2FASerializer(serializers.Serializer):
 class TransactionHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = TransactionHistory
-        fields = ['id', 'amount', 'description', 'created_at']
+        fields = ['id','transaction_type','amount', 'description', 'created_at']
 
 class EarningHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = EarningHistory
         fields = ['id', 'user_task', 'points_earned', 'money_earned', 'created_at']
+
+class VisitSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Visit
+        fields = '__all__'
+
+class RewardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Reward
+        fields = '__all__'
+
+class RewardClaimSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RewardClaim
+        fields = '__all__'

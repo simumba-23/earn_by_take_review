@@ -62,6 +62,9 @@ admin.site.register(Question)
 admin.site.register(Answer)
 admin.site.register(AnswerOption)
 admin.site.register(VirtualWallet)
+admin.site.register(EarningHistory)
+admin.site.register(TransactionHistory)
+
 
 
 
