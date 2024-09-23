@@ -44,6 +44,14 @@ def register_user(request):
         print(f'User {user.username} registered with role {user.role}')
         return Response(serializer.data,status=status.HTTP_201_CREATED)
     return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+@api_view(['POST'])
+def register_admin(request):
+    serializer = UserSerializer(data=request.data)
+    if serializer.is_valid():
+        user =serializer.save(role ='admin', is_active=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST )
+
 @api_view(['GET'])
 def customer_list(request):
     customers = CustomUser.objects.filter(role='customer')
