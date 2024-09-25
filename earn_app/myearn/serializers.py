@@ -56,11 +56,45 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = '__all__'
+    def validate_slug(self, value):
+        if Category.objects.filter(slug=value).exists():
+            raise serializers.ValidationError("A category with this slug already exists.")
+        return value
+
+    def create(self, validated_data):
+        if 'slug' not in validated_data or not validated_data['slug']:
+            validated_data['slug'] = self.generate_unique_slug(validated_data['name'])
+        return super().create(validated_data)
+
+    def generate_unique_slug(self, name):
+        import uuid
+        slug = name.lower().replace(' ', '-')
+        while Category.objects.filter(slug=slug).exists():
+            slug = f"{slug}-{uuid.uuid4().hex[:8]}"
+        return slug
 
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = '__all__'
+    def validate_slug(self, value):
+        if Tag.objects.filter(slug=value).exists():
+            raise serializers.ValidationError("A Tag with this slug already exists.")
+        return value
+
+    def create(self, validated_data):
+        if 'slug' not in validated_data or not validated_data['slug']:
+            validated_data['slug'] = self.generate_unique_slug(validated_data['name'])
+        return super().create(validated_data)
+
+    def generate_unique_slug(self, name):
+        import uuid
+        slug = name.lower().replace(' ', '-')
+        while Tag.objects.filter(slug=slug).exists():
+            slug = f"{slug}-{uuid.uuid4().hex[:8]}"
+        return slug
+
+    
 
 class CommentSerializer(serializers.ModelSerializer):
     class Meta:
