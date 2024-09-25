@@ -50,6 +50,9 @@ urlpatterns = [
     path('create_rewards', views.create_rewards, name= 'create_rewards'),
     path('rewards', views.reward_list, name='reward-list'),
     path('claim-reward', views.reward_claim, name='reward-claim'),
+    path('create_blog_category',views.create_blog_category,name="blog_category"),
+    path('create_blog_tag',views.create_blog_tag,name="blog_tag"),
+
 ]
 
 
