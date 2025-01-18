@@ -44,6 +44,18 @@ def register_user(request):
         print(f'User {user.username} registered with role {user.role}')
         return Response(serializer.data,status=status.HTTP_201_CREATED)
     return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def register_fcm_token(request):
+    token = request.data.get('token')  # Get token from React
+    user = request.user
+    print("user:",user)
+    if token:
+        DiviceToken.objects.create(token=token,user=user)  # Save token to DB
+        return Response({"message": "Token saved successfully"}, status=201)
+    return Response({"error": "Token not provided"}, status=400)
+
 @api_view(['POST'])
 def register_admin(request):
     serializer = UserSerializer(data=request.data)
@@ -59,13 +71,30 @@ def customer_list(request):
     return Response(serializer.data)
 
 @api_view(['GET'])
+def customer_detail(request,pk):
+    try:
+        user_detail = CustomUser.objects.get(pk=pk)
+    except CustomUser.DoesNotExist:
+        return Response({'error' : 'User Not Found'}, status=status.HTTP_400_BAD_REQUEST)
+    serializers = UserSerializer(user_detail)
+    return Response(serializers.data,status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def online_users_count(request):
+    count = UserStatus.objects.filter(is_online=True).count()
+    return Response({'online_users': count})
+        
+
+@api_view(['GET'])
 def task_list(request, task_type=None):
     if task_type:
         tasks = Task.objects.filter(task_type=task_type, is_active=True)
     else:
         tasks = Task.objects.filter(is_active=True)
     serializer = TaskSerializer(tasks, many=True)
-    return Response(serializer.data)
+    return Response(serializer.data, status=status.HTTP_200_OK)
 @api_view(['GET'])
 def task_detail(request,id):
     try:
@@ -82,6 +111,29 @@ def add_task(request):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['DELETE'])
+def delete_task(request, task_id):
+    try:
+        task = Task.objects.get(id=task_id)
+        task.delete()
+        return Response({"message": "Task deleted successfully!"}, status=status.HTTP_204_NO_CONTENT)
+    except Task.DoesNotExist:
+        return Response({"error": "Task not found."}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['PUT'])
+def update_task(request, task_id):
+    try:
+        task = Task.objects.get(id=task_id)
+    except Task.DoesNotExist:
+        return Response({"error": "Task not found."}, status=status.HTTP_404_NOT_FOUND)
+    
+    serializer = TaskSerializer(task, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 @api_view(['GET'])
 def get_survey(request, task_id):
     try:
@@ -212,7 +264,7 @@ def user_task_stats(request):
         "wallet_balance": wallet_balance,
         "pending_total":pending_total,
         "approved_total":approved_total,
-        " task_completion_rate": task_completion_rate,
+        "task_completion_rate": task_completion_rate,
 
     })
 
@@ -221,7 +273,12 @@ def user_task_stats(request):
 def admin_reports(request):
     user = request.user
     total_users = CustomUser.objects.filter(role='customer').count()
+    display_total_users = CustomUser.objects.filter(role='customer')
+    display_total_users_serialized = UserSerializer(display_total_users, many=True).data
+
     active_users_count = CustomUser.objects.filter(usertask__status='Completed').distinct().count()
+    display_active_users = CustomUser.objects.filter(usertask__status ='Completed').distinct()
+    display_active_users_serialized = UserSerializer(display_active_users, many= True).data
     users_highest_points = CustomUser.objects.annotate(
     total_points=Sum('usertask__points_earned')
     ).order_by('-total_points')[:10]
@@ -266,6 +323,9 @@ def admin_reports(request):
     last_24_hours = now - timezone.timedelta(hours=24)
     total_visits = Visit.objects.filter(timestamp__gte=last_24_hours).count()
     new_users = CustomUser.objects.filter(date_joined__gte=last_24_hours).count()
+    display_new_users = CustomUser.objects.filter(date_joined__gte=last_24_hours)
+    display_new_users_serialized = UserSerializer(display_new_users , many=True).data
+
     aggregated_data = UserTask.objects.filter(created_at__gte=last_24_hours).aggregate(
         total_counts=Count('id'),
         completed_counts=Count('id', filter=Q(status='Completed'))
@@ -297,6 +357,9 @@ def admin_reports(request):
     "total_visits":total_visits,
     "new_users":new_users,
     "task_completion_rate_per_24hrs": task_completion_rate_per_24hrs,
+    "display_active_users":display_active_users_serialized,
+    "display_new_users":display_new_users_serialized ,
+    "display_total_users":display_total_users_serialized,
     
     })
 
@@ -406,22 +469,27 @@ def list_withdrawal_requests(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def approve_withdrawal_request(request, pk):
+def approve_withdrawal_request(request, user):
     try:
-        withdrawal_request = WithdrawalRequest.objects.get(pk=pk)
+        # Fetch the withdrawal request for the given user ID
+        withdrawal_request = WithdrawalRequest.objects.filter(user=user,).first()
+        
+        if not withdrawal_request:
+            return Response({'error': 'No pending withdrawal request found for the user'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Approve the withdrawal request
         if withdrawal_request.approve():
             serializer = WithdrawalRequestSerializer(withdrawal_request)
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
             return Response({'error': 'Insufficient balance or already processed'}, status=status.HTTP_400_BAD_REQUEST)
-    except WithdrawalRequest.DoesNotExist:
-        return Response({'error': 'Withdrawal request not found'}, status=status.HTTP_404_NOT_FOUND)
-    
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)    
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def reject_withdrawal_request(request, pk):
+def reject_withdrawal_request(request,user):
     try:
-        withdrawal_request = WithdrawalRequest.objects.get(pk=pk)
+        withdrawal_request = WithdrawalRequest.objects.get(user=user)
         if withdrawal_request.reject():
             serializer = WithdrawalRequestSerializer(withdrawal_request)
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -429,6 +497,8 @@ def reject_withdrawal_request(request, pk):
             return Response({'error': 'Already processed'}, status=status.HTTP_400_BAD_REQUEST)
     except WithdrawalRequest.DoesNotExist:
         return Response({'error': 'Withdrawal request not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
 
 from rest_framework.pagination import PageNumberPagination   
 @api_view(['GET'])
@@ -661,6 +731,7 @@ def change_password(request):
         return Response({'status': 'success', 'message': 'Password changed successfully'}, status=status.HTTP_200_OK)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+import pyotp
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -673,7 +744,6 @@ def generate_2fa_qr_code(request):
     totp = pyotp.TOTP(user.otp_secret)
     otp_url = totp.provisioning_uri(name=user.username, issuer_name="earn_app")
     return Response({'otp_url': otp_url}, status=status.HTTP_200_OK)
-import pyotp
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def verify_2fa(request):
@@ -748,7 +818,12 @@ def referral_status(request):
     referrals = Referral.objects.filter(inviter=request.user)
     serializer = ReferralSerializer(referrals, many=True)
     return Response(serializer.data)
-
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def online_users_count(request):
+    count = UserStatus.objects.filter(is_online=True).count()
+    return Response({'online_users': count})
+ 
 @api_view(['POST'])
 def bulk_user_action(request):
     serializer = BulkActionSerializer(data=request.data)
@@ -810,6 +885,13 @@ def reward_list(request):
     serializer = RewardSerializer(rewards, many=True)
     return Response(serializer.data)
 
+# def reward_detail(request,id):
+#     try:
+#         reward_detail = Reward.objects.get(id=id)
+#     except Reward.DoesNotExist:
+#         return Response({'error':'Reward Not Found'},status=status.HTTP_404_NOT_FOUND)
+#     serializers = RewardSerializer(reward_detail)
+#     return Response(serializers.data,status=status.HTTP_200_OK)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_rewards(request):
@@ -819,6 +901,18 @@ def create_rewards(request):
         return Response(serializers.data, status=status.HTTP_201_CREATED)
     return Response(serializers.errors, status=status.HTTP_400_BAD_REQUEST)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def reward_detail(request,pk):
+    try:
+        reward = Reward.objects.get(pk=pk)
+    except Reward.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    if request.method == 'GET':
+        serializer = RewardSerializer(reward)
+        return Response(serializer.data)
+    return Response({"error": "To get reward detail something went wrong."}, status=status.HTTP_400_BAD_REQUEST)
+        
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def reward_claim(request):

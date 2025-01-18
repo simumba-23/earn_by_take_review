@@ -47,23 +47,15 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'whitenoise.runserver_nostatic',
     "corsheaders",
-    'channels',
     'myearn',
     'rest_framework',
+    'rest_framework.authtoken',
     'rest_framework_simplejwt.token_blacklist',
 ]
 
 ASGI_APPLICATION = 'earn_app.asgi.application'
 
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [(config('REDIS_HOST', default='127.0.0.1'), config('REDIS_PORT', default=6379, cast=int))],
-        },
-    },
-}
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -71,9 +63,11 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'myearn.middleware.LogVisitsMiddleware',
+    'myearn.middleware.UpdateLastActivityMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -203,5 +197,9 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 AUTH_USER_MODEL = 'myearn.CustomUser'
 FRONTEND_URL = 'https://frontearn.onrender.com'
+
+# FIREBASE_CREDENTIALS = os.getenv('FIREBASE_CREDENTIALS_PATH',' C:\Users\kinge\Desktop\earn_by_app\earn_app\serviceAccountKey.json ')
+FIREBASE_CREDENTIALS = os.getenv('FIREBASE_CREDENTIALS_PATH', 'C:\\Users\\kinge\\Desktop\\earn_by_app\\earn_app\\serviceAccountKey.json')
+
 
 

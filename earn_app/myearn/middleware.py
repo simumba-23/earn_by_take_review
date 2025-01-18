@@ -1,8 +1,8 @@
-from channels.db import database_sync_to_async
 from django.contrib.auth.models import AnonymousUser
 from rest_framework.authtoken.models import Token
 from urllib.parse import parse_qs
-from channels.middleware import BaseMiddleware
+from .models import UserStatus
+from django.utils import timezone
 
 from .models import Visit
 
@@ -24,17 +24,16 @@ class LogVisitsMiddleware:
             ip = request.META.get('REMOTE_ADDR')
         return ip
     
-@database_sync_to_async
-def get_user(token_key):
-    try:
-        token = Token.objects.get(key=token_key)
-        return token.user
-    except Token.DoesNotExist:
-        return AnonymousUser()
 
-class TokenAuthMiddleware(BaseMiddleware):
-    async def __call__(self, scope, receive, send):
-        query_string = parse_qs(scope['query_string'].decode())
-        token_key = query_string.get('token', [None])[0]
-        scope['user'] = await get_user(token_key)
-        return await super().__call__(scope, receive, send)
+class UpdateLastActivityMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.user.is_authenticated:
+            UserStatus.objects.update_or_create(
+                user=request.user,
+                defaults={'last_activity': timezone.now(), 'is_online': True}
+            )
+        response = self.get_response(request)
+        return response

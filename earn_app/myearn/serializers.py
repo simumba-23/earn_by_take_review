@@ -31,7 +31,15 @@ class UserSerializer(serializers.ModelSerializer):
 class BulkActionSerializer(serializers.Serializer):
     action = serializers.ChoiceField(choices=['suspend', 'delete', 'ban', 'unban'])
     user_ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
-    
+
+class UserStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserStatus
+        fields = ['user', 'last_activity', 'is_online']
+        read_only_fields = ['user', 'last_activity', 'is_online']
+        
+
+
 class SurveySerializer(serializers.ModelSerializer):
     class Meta:
         model = Survey
@@ -39,7 +47,7 @@ class SurveySerializer(serializers.ModelSerializer):
 class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
-        fields = ['id','name','points','media_url','task_type']
+        fields = ['id','name','points','description','media_url','task_type']
 class UserTaskSerializer(serializers.ModelSerializer):
     task = TaskSerializer()
 

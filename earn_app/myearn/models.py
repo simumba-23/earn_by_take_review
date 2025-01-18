@@ -8,7 +8,7 @@ import random
 import string
 from django.utils.text import slugify
 from decimal import Decimal,getcontext
-from .utils import send_notification
+from .firebase import send_notification
 getcontext().prec = 10
 POINTS_TO_MONEY_CONVERSION_RATE = Decimal('0.0029')
 class CustomUser(AbstractUser):
@@ -24,8 +24,25 @@ class CustomUser(AbstractUser):
     is_2fa_enabled = models.BooleanField(default=False)
     is_banned =  models.BooleanField(default=False)
 
+
     def __str__(self):
         return self.username
+from django.utils.timezone import  now    
+class DiviceToken(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="device_tokens")
+    token = models.TextField(help_text="Firebase Cloud Messaging token for the device.")
+    last_updated = models.DateTimeField(default=now, help_text="The last time the token was updated.")
+
+
+    def __str__(self):
+        return f"{self.user.username}'s FCM Token"
+
+@receiver(post_save, sender=DiviceToken)
+def send_welcome_notification(sender, instance, created, **kwargs):
+    if created:
+        title = "Welcome"
+        body = "Thank you for registering"
+        send_notification(title, body, instance.token)
 
 class Task(models.Model):
     TASK_TYPES = (
@@ -36,6 +53,7 @@ class Task(models.Model):
     name = models.CharField(max_length=255)
     task_type = models.CharField(choices=TASK_TYPES, max_length=50)
     points = models.IntegerField()
+    description = models.TextField()
     is_active = models.BooleanField(default=True)
     media_url = models.URLField(max_length=200,default="")  # URL for the media file
     created_at = models.DateTimeField(auto_now_add=True)
@@ -43,6 +61,14 @@ class Task(models.Model):
 
     def __str__(self):
         return self.name
+    
+class UserStatus(models.Model):
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
+    last_activity = models.DateTimeField(default=timezone.now)
+    is_online = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.user.username} - {'Online' if self.is_online else 'Offline'}"
 class UserTask(models.Model):
     STATUS_CHOICES = (
         ('Pending', 'Pending'),
@@ -81,7 +107,9 @@ class UserTask(models.Model):
                     description=f"Referral reward for {self.user.username}'s task completion"
                 )
                 # Send notification to inviter
-                send_notification(referral.inviter, f"You earned a referral reward for {self.user.username}'s task completion.")
+                title = referral.inviter
+                body = f"You earned a referral reward for {self.user.username}'s task completion."
+                send_notification(title, body)
             except Referral.DoesNotExist:
                 # No referral found
                 pass
@@ -89,8 +117,9 @@ class UserTask(models.Model):
 @receiver(post_save, sender=UserTask)
 def user_task_post_save(sender, instance, **kwargs):
     if instance.status == 'Completed':
-        message = f"Task '{instance.task.name}' completed. You earned {instance.points_earned} points."
-        send_notification(instance.user, message)
+        title ='User Task Completions'
+        body= f"Task '{instance.task.name}' completed. You earned {instance.points_earned} points."
+        send_notification(title, body)
 
 class Reward(models.Model):
     name = models.CharField(max_length=255)
@@ -274,10 +303,11 @@ class WithdrawalRequest(models.Model):
                 amount=self.amount,
                 description=f"Withdrawal of ${self.amount}"
             )
-            send_notification(self.user, f"Your withdrawal request of ${self.amount} has been approved.")
+            title = "Approve for withdrawal Request"
+            body = f"Your withdrawal request of ${self.amount} has been approved."
+            send_notification(title, body)
             return True
 
-            return True
         return False
 
     def reject(self):
@@ -295,7 +325,9 @@ class WithdrawalRequest(models.Model):
             )
             self.status = 'rejected'
             self.save()
-            send_notification(self.user, f"Your withdrawal request of ${self.amount} has been rejected.")
+            title = "Rejection for withdrawal requests"
+            body = f"Your withdrawal request of ${self.amount} has been rejected."
+            send_notification(title, body)
             return True
         return False
 
@@ -304,6 +336,7 @@ class Notification(models.Model):
     message = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     read = models.BooleanField(default=False)
+
 
 class Category(models.Model):
     name = models.CharField(max_length=255)
@@ -409,28 +442,11 @@ class Visit(models.Model):
 @receiver(post_save, sender=RewardClaim)
 def reward_claim_post_save(sender, instance, **kwargs):
     if instance.status == 'approved':
-        message = f"Your reward claim for '{instance.reward.name}' has been approved."
+        title = "Approved reward claim"
+        body = f"Your reward claim for '{instance.reward.name}' has been approved."
     elif instance.status == 'rejected':
-        message = f"Your reward claim for '{instance.reward.name}' has been rejected."
+        title = "Rejection for reward claim"
+        body = f"Your reward claim for '{instance.reward.name}' has been rejected."
     else:
         return
-    send_notification(instance.user, message)
-
-@receiver(post_save, sender=WithdrawalRequest)
-def withdrawal_request_post_save(sender, instance, **kwargs):
-    if instance.status == 'approved':
-        message = f"Your withdrawal request of ${instance.amount} has been approved."
-    elif instance.status == 'rejected':
-        message = f"Your withdrawal request of ${instance.amount} has been rejected."
-    else:
-        return
-    send_notification(instance.user, message)
-
-@receiver(post_save, sender=Comment)
-def comment_post_save(sender, instance, **kwargs):
-    if instance.parent is None:
-        message = f"New comment on your blog '{instance.blog.title}' by {instance.author.username}."
-        send_notification(instance.blog.author, message)
-    else:
-        message = f"New reply to your comment by {instance.author.username}."
-        send_notification(instance.parent.author, message)
+    send_notification(title, body)
