@@ -8,7 +8,7 @@ import random
 import string
 from django.utils.text import slugify
 from decimal import Decimal,getcontext
-from .firebase import send_notification
+# from .firebase import send_notification
 getcontext().prec = 10
 POINTS_TO_MONEY_CONVERSION_RATE = Decimal('0.0029')
 class CustomUser(AbstractUser):
@@ -42,7 +42,7 @@ def send_welcome_notification(sender, instance, created, **kwargs):
     if created:
         title = "Welcome"
         body = "Thank you for registering"
-        send_notification(title, body, instance.token)
+        # send_notification(title, body, instance.token)
 
 class Task(models.Model):
     TASK_TYPES = (
@@ -109,7 +109,7 @@ class UserTask(models.Model):
                 # Send notification to inviter
                 title = referral.inviter
                 body = f"You earned a referral reward for {self.user.username}'s task completion."
-                send_notification(title, body)
+                # send_notification(title, body)
             except Referral.DoesNotExist:
                 # No referral found
                 pass
@@ -119,7 +119,7 @@ def user_task_post_save(sender, instance, **kwargs):
     if instance.status == 'Completed':
         title ='User Task Completions'
         body= f"Task '{instance.task.name}' completed. You earned {instance.points_earned} points."
-        send_notification(title, body)
+        # send_notification(title, body)
 
 class Reward(models.Model):
     name = models.CharField(max_length=255)
@@ -327,7 +327,7 @@ class WithdrawalRequest(models.Model):
             self.save()
             title = "Rejection for withdrawal requests"
             body = f"Your withdrawal request of ${self.amount} has been rejected."
-            send_notification(title, body)
+            # send_notification(title, body)
             return True
         return False
 
@@ -449,4 +449,4 @@ def reward_claim_post_save(sender, instance, **kwargs):
         body = f"Your reward claim for '{instance.reward.name}' has been rejected."
     else:
         return
-    send_notification(title, body)
+    # send_notification(title, body)
